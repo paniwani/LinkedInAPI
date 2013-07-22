@@ -10,12 +10,11 @@ abort("Must specify arguments: input.csv output.csv") if input_f.nil? or output_
 abort("Arguments must be .csv files") unless File.extname(input_f) == ".csv" or File.extname(output_f) == ".csv"
 abort("Could not find input data: #{input_f}") unless File.exists?(input_f)
 
-# Set LinkedIn API keys
-api_key = 'tzldc94jok1k'
-api_secret = 'g7bbMduupz0YAdoh'
-user_token = '6da79c15-1f79-451c-a20d-554933bf76e7'
-user_secret = 'e50fe3ea-e6f1-4961-a6d4-68184f20c38a'
- 
+api_key = 'be5n1vcrlmfy'
+api_secret = 'rgIYw7dnzOplgWZV'
+user_token = '59c80ff4-16ad-4565-90cb-9c86873aaad7'
+user_secret = '04fe139b-7723-44d7-836a-fe59f7155c40'
+
 # Specify LinkedIn API endpoint
 configuration = { :site => 'https://api.linkedin.com' }
  
