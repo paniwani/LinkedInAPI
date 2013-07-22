@@ -4,16 +4,17 @@ require 'json'
 require 'csv'
 require 'open-uri'
 
-# Fill the keys and secrets you retrieved after registering your app
-# api_key = 'be5n1vcrlmfy'
-# api_secret = 'rgIYw7dnjzOplgWZV'
-# user_token = '59c80ff4-16ad-4565-90cb-9c86873aaad7'
-# user_secret = '04fe139b-7723-44d7-836a-fe59f7155c40'
+# Check arguments
+input_f, output_f = ARGV[0], ARGV[1]
+abort("Must specify arguments: input.csv output.csv") if input_f.nil? or output_f.nil?
+abort("Arguments must be .csv files") unless File.extname(input_f) == ".csv" or File.extname(output_f) == ".csv"
+abort("Could not find input data: #{input_f}") unless File.exists?(input_f)
 
+# Set LinkedIn API keys
 api_key = 'tzldc94jok1k'
 api_secret = 'g7bbMduupz0YAdoh'
-user_token = 'fcd6ebe2-8b85-42ea-9723-5da4f110f559'
-user_secret = 'a0942932-3a76-4b97-8dad-19d8e5afaa06'
+user_token = '6da79c15-1f79-451c-a20d-554933bf76e7'
+user_secret = 'e50fe3ea-e6f1-4961-a6d4-68184f20c38a'
  
 # Specify LinkedIn API endpoint
 configuration = { :site => 'https://api.linkedin.com' }
@@ -24,43 +25,79 @@ consumer = OAuth::Consumer.new(api_key, api_secret, configuration)
 # Use your developer token and secret to instantiate access token object
 access_token = OAuth::AccessToken.new(consumer, user_token, user_secret)
 
-CSV.open("out.csv", "w") do |csv|
+CSV.open(output_f, "w") do |csv|
   # Write output header line
-  csv << ["Company Name", "LinkedIn Name", "Company Type", "Size", "Location"]
+  csv << ["Company Name", "LinkedIn Name", "Company Type", "Size", "City", "State", "Postal Code", "Description"]
 
   i = 1
-  CSV.foreach("test_data.csv", headers: true) do |row|
+  CSV.foreach(input_f, headers: true) do |row|
+
+    output = []
 
     # Get company name from input file
-    company_name = URI.encode(row[0])
+    company_name = row[0]
+    company_name_enc = URI.encode(company_name)
 
     # Find company by name
     # Search by keyword and assume first result is best
-    query = "http://api.linkedin.com/v1/company-search?keywords=#{company_name}&format=json"
-    results = JSON.parse(access_token.get(query).body)
-    
-    
-
-    id   = results["companies"]["values"][0]["id"]
-    name = results["companies"]["values"][0]["name"]
-
-    binding.pry
-
-    # Use id to find company size and location
-    query = "http://api.linkedin.com/v1/companies/#{id}:(company-type,employee-count-range,locations:(address:(state)))?format=json"
+    query = "http://api.linkedin.com/v1/company-search?keywords=#{company_name_enc}&format=json"
     results = JSON.parse(access_token.get(query).body)
 
+    begin
+      unless results["companies"]["_total"] > 0
+        puts "#{i} #{company_name} NOT FOUND (no companies)"
+        csv << [company_name, "Not Found"]
+        i = i+1
+        next
+      end
 
-    binding.pry
+      id   = results["companies"]["values"][0]["id"]
+      name = results["companies"]["values"][0]["name"]
 
-    company_size = results["employeeCountRange"]["name"]
-    company_location = results["locations"][]
+      # Use id to find company size and location
+      query = "http://api.linkedin.com/v1/companies/#{id}:" + "(" + 
+        "company-type," + 
+        "employee-count-range," +
+        "locations:(address:(city,state,postal-code),is-headquarters)," +
+        "description)" + 
+        "?format=json"
+      
+      results = JSON.parse(access_token.get(query).body)
 
-    # Write data out to CSV file
-    # TODO
-    csv << [company_name, name, company_size, company_location]
+      if results.empty?
+        puts "#{i} #{company_name} NOT FOUND (no id results)"
+        csv << [company_name, "Not Found"]
+        i = i+1
+        next
+      end
+
+      company_type = results["companyType"]["name"]
+      company_size = results["employeeCountRange"]["name"]
+      company_description = results["description"]
+
+      hq = {}
+      hq["city"] = ""
+      hq["state"] = ""
+      hq["postalCode"] = ""
+
+      locs = results["locations"]["values"].keep_if { |x| x["isHeadquarters"] }
+      hq = locs[0]["address"] unless locs.empty?
+          
+
+      # Write data out to CSV file
+      output = [company_name, name, company_type, company_size, hq["city"], hq["state"], hq["postalCode"], company_description]
+      puts "#{i} " + output[0..-2].join("\t")
+      
+      csv << output
+
+    rescue
+      puts "#{i} #{company_name} NOT FOUND (no method error)"
+
+      csv << [company_name, "Not Found"]
+      i = i+1
+      next
+    end
 
     i = i+1
-    break if i >= 10
   end
 end
